@@ -20,7 +20,7 @@ const embeddedCartItemSchema = new mongoose.Schema({
   Image: {
     type: String // Store image URL directly
   }
-}, { _id: false }); // _id: false prevents creation of default _id for subdocuments
+});
 
 const cartSchema = new mongoose.Schema({
   UserID: {

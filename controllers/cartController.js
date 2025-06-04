@@ -209,6 +209,66 @@ const clearCart = async (req, res) => {
   }
 };
 
+// @desc    Remove item from cart by UserID and ItemID
+// @route   DELETE /api/gio-hang/:userId/muc/:itemId
+// @access  Private (assuming auth middleware handles user identification)
+const removeCartItemByUserAndItemId = async (req, res) => {
+  try {
+    const { userId, itemId } = req.params;
+
+    // Find the user's active cart using userId from parameters
+    // Note: If using protect middleware, req.user._id is available.
+    // We need to decide if the userId in the URL *must* match req.user._id
+    // or if this endpoint is for admin to manage carts by userId.
+    // Assuming for now that the authenticated user (req.user._id) must match the userId in the params.
+    if (req.user && req.user._id.toString() !== userId) {
+         return errorResponse(res, 'Không được phép xóa sản phẩm khỏi giỏ hàng của người dùng khác', HTTP_STATUS.FORBIDDEN);
+    }
+
+    const cart = await Cart.findOne({ UserID: userId, Status: 'active' });
+
+    if (!cart) {
+      return errorResponse(res, 'Không tìm thấy giỏ hàng của người dùng này', HTTP_STATUS.NOT_FOUND);
+    }
+
+    // Find the index of the embedded item by its _id (itemId)
+    const itemIndex = cart.items.findIndex(item => item._id.toString() === itemId);
+
+    if (itemIndex === -1) {
+      return errorResponse(res, 'Không tìm thấy sản phẩm trong giỏ hàng', HTTP_STATUS.NOT_FOUND);
+    }
+
+    // Remove the item from the embedded array
+    cart.items.splice(itemIndex, 1);
+
+    // Save the updated cart document
+    await cart.save();
+
+    // Update cart total
+    await updateCartTotal(cart._id); // Use the existing helper function
+
+    // Return updated cart with populated product details (optional, but useful for frontend update)
+    const updatedCart = await Cart.findById(cart._id)
+      .populate({
+        path: 'items.ProductID',
+        select: 'Product_Name Price Main_Image'
+      });
+
+
+    successResponse(res, updatedCart, 'Đã xóa sản phẩm khỏi giỏ hàng');
+
+  } catch (error) {
+    console.error('Error removing item by user and item ID:', error);
+    // Log full error response if available for debugging
+    if (error.response) {
+       console.error('Error response data:', error.response.data);
+       console.error('Error response status:', error.response.status);
+       console.error('Error response headers:', error.response.headers);
+    }
+    errorResponse(res, 'Lỗi khi xóa sản phẩm khỏi giỏ hàng', HTTP_STATUS.INTERNAL_SERVER_ERROR, error.message);
+  }
+};
+
 // Helper function to update cart total
 const updateCartTotal = async (cartId) => {
   try {
@@ -253,5 +313,6 @@ module.exports = {
   addToCart,
   updateCartItem,
   removeFromCart,
-  clearCart
+  clearCart,
+  removeCartItemByUserAndItemId
 }; 
